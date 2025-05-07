@@ -6,6 +6,7 @@
 
 int main(int argc, char* argv[]) {
     printInfoDevice();
-    testCoalesced();
+    // testCoalesced();
+    testMatrix();
     return 0;
 }

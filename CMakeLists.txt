@@ -5,8 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_subdirectory(coalesced)
 
+add_subdirectory(matrix)
+
 add_executable(cudaAnalyze main.cu info.cu test.cu)
 
 target_link_libraries(cudaAnalyze PUBLIC Coalesced)
+
+target_link_libraries(cudaAnalyze PUBLIC Matrix)
 
 set_target_properties(cudaAnalyze PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
