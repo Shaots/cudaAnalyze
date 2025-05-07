@@ -15,21 +15,23 @@ __global__ void coalescedMultiply(const int* a, const int* b, int* c, int M, int
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (col >= N) return;
+    // Here is no condition return !!!
 
     __shared__ int sh[32][32];
     int            sum = 0;
-    int            numSubMatrix = (K - 1) / 32 + 1;
+    int            numSubMatrix = (K >> 5) + 1;
     for (int sub = 0; sub < numSubMatrix; ++sub) {
+        // We cannot write
+        // if (row >= M || col >= N || threadIdx.x + sub * 32 >= K)
         if (row >= M || threadIdx.x + sub * 32 >= K)
             sh[threadIdx.y][threadIdx.x] = 0;
         else
             sh[threadIdx.y][threadIdx.x] = a[row * K + sub * 32 + threadIdx.x];
-        __syncthreads();
+        __syncwarp();
         for (int i = 0; i < 32; ++i) {
             sum += sh[threadIdx.y][i] * b[(sub * 32 + i) * N + col];
         }
-        __syncthreads();
+        __syncwarp();
     }
     if (row < M && col < N) c[row * N + col] = sum;
 }

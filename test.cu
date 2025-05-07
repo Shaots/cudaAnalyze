@@ -11,8 +11,8 @@ void testCoalesced() {
 }
 
 void testMatrix() {
-    // std::cout << "Simple multiply ";
-    // testMultiply(simpleMultiply);
+    std::cout << "Simple multiply ";
+    testMultiply(simpleMultiply);
 
     std::cout << "Coalesced multiply ";
     testMultiply(coalescedMultiply);
