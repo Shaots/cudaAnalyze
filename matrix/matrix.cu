@@ -36,7 +36,41 @@ __global__ void coalescedMultiply(const int* a, const int* b, int* c, int M, int
     if (row < M && col < N) c[row * N + col] = sum;
 }
 
+
+__global__ void sharedMultiply(const int* a, const int* b, int* c, int M, int K, int N) {
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Here is no condition return !!!
+
+    __shared__ int shA[32][32];
+    __shared__ int shB[32][32];
+    int            sum = 0;
+    int            numSubMatrix = (K >> 5) + 1;
+    for (int sub = 0; sub < numSubMatrix; ++sub) {
+        // We cannot write
+        // if (row >= M || col >= N || threadIdx.x + sub * 32 >= K)
+        if (row >= M || sub * 32 + threadIdx.x >= K)
+            shA[threadIdx.y][threadIdx.x] = 0;
+        else
+            shA[threadIdx.y][threadIdx.x] = a[row * K + sub * 32 + threadIdx.x];
+
+        if (col >= N || sub * 32 + threadIdx.y >= K)
+            shB[threadIdx.y][threadIdx.x] = 0;
+        else
+            shB[threadIdx.y][threadIdx.x] = b[(sub * 32 + threadIdx.y) * N + col];
+        __syncthreads();
+        for (int i = 0; i < 32; ++i) {
+            sum += shA[threadIdx.y][i] * shB[i][threadIdx.x];
+        }
+        __syncthreads();
+    }
+    if (row < M && col < N) c[row * N + col] = sum;
+}
+
 void testMultiply(multiFunc func, int warm, int times) {
+    std::srand(std::time({})); // use current time as seed for random generator
+
     int M = 1000;
     int K = 2000;
     int N = 3000;
@@ -44,9 +78,12 @@ void testMultiply(multiFunc func, int warm, int times) {
     int* a = new int[M * K];
     int* b = new int[K * N];
     int* c = new int[M * N];
+    int* cpuMultiply = new int[M * N];
 
-    for (int i = 0; i < M * K; ++i) a[i] = 2;
-    for (int i = 0; i < K * N; ++i) b[i] = 3;
+    for (int i = 0; i < M * K; ++i) a[i] = std::rand() % 20;
+    for (int i = 0; i < K * N; ++i) b[i] = std::rand() % 20;
+
+    multiply(a, b, cpuMultiply, M, K, N);
 
     int* d_a;
     int* d_b;
@@ -89,20 +126,34 @@ void testMultiply(multiFunc func, int warm, int times) {
 
     bool flag = true;
     for (int i = 0; i < M * N; ++i) {
-        if (c[i] != 6 * 2000) {
-            std::cout << i << " " << c[i] << " ";
+        if (c[i] != cpuMultiply[i]) {
+            std::cout << "Error: " << i << " " << c[i] << " " << cpuMultiply[i];
             flag = false;
             break;
         }
     }
-    std::cout << flag << std::endl;
+    std::cout << std::boolalpha << flag << std::endl;
 
     std::cout << time / times << " ms" << std::endl;
 
     delete[] a;
     delete[] b;
     delete[] c;
+    delete[] cpuMultiply;
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);
+}
+
+void multiply(const int* a, const int* b, int* c, int M, int K, int N) {
+    int sum;
+    for(int row = 0; row < M; ++row) {
+        for (int col = 0; col < N; ++col) {
+            sum = 0;
+            for (int k = 0; k < K; ++k) {
+                sum += a[row * K + k] * b[k * N + col];
+            }
+            c[row * N + col] = sum;
+        }
+    }
 }
