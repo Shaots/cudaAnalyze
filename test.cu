@@ -16,4 +16,7 @@ void testMatrix() {
 
     std::cout << "Coalesced multiply ";
     testMultiply(coalescedMultiply);
+
+    std::cout << "Shared multiply ";
+    testMultiply(sharedMultiply);
 }

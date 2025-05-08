@@ -36,6 +36,38 @@ __global__ void coalescedMultiply(const int* a, const int* b, int* c, int M, int
     if (row < M && col < N) c[row * N + col] = sum;
 }
 
+
+__global__ void sharedMultiply(const int* a, const int* b, int* c, int M, int K, int N) {
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Here is no condition return !!!
+
+    __shared__ int shA[32][32];
+    __shared__ int shB[32][32];
+    int            sum = 0;
+    int            numSubMatrix = (K >> 5) + 1;
+    for (int sub = 0; sub < numSubMatrix; ++sub) {
+        // We cannot write
+        // if (row >= M || col >= N || threadIdx.x + sub * 32 >= K)
+        if (row >= M || sub * 32 + threadIdx.x >= K)
+            shA[threadIdx.y][threadIdx.x] = 0;
+        else
+            shA[threadIdx.y][threadIdx.x] = a[row * K + sub * 32 + threadIdx.x];
+
+        if (col >= N || sub * 32 + threadIdx.y >= K)
+            shB[threadIdx.y][threadIdx.x] = 0;
+        else
+            shB[threadIdx.y][threadIdx.x] = b[(sub * 32 + threadIdx.y) * N + col];
+        __syncthreads();
+        for (int i = 0; i < 32; ++i) {
+            sum += shA[threadIdx.y][i] * shB[i][threadIdx.x];
+        }
+        __syncthreads();
+    }
+    if (row < M && col < N) c[row * N + col] = sum;
+}
+
 void testMultiply(multiFunc func, int warm, int times) {
     int M = 1000;
     int K = 2000;
