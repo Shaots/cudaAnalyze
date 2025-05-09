@@ -22,4 +22,7 @@ void testMatrix() {
 
     std::cout << "Simple multiply AAT: ";
     testMultiply(simpleMultiplyAAT);
+
+    std::cout << "Coalesced multiply AAT: ";
+    testMultiply(coalescedMultiplyAAT);
 }

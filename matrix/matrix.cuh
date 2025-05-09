@@ -14,6 +14,8 @@ __global__ void simpleMultiplyAAT(const int* a, int* c, int M, int K);
 
 __global__ void coalescedMultiply(const int* a, const int* b, int* c, int M, int K, int N);
 
+__global__ void coalescedMultiplyAAT(const int* a, int* c, int M, int K);
+
 __global__ void sharedMultiply(const int* a, const int* b, int* c, int M, int K, int N);
 
 typedef void (*multiFunc)(const int* a, const int* b, int* c, int M, int K, int N);
