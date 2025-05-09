@@ -11,6 +11,20 @@ __global__ void simpleMultiply(const int* a, const int* b, int* c, int M, int K,
     c[row * N + col] = sum;
 }
 
+__global__ void simpleMultiplyAAT(const int* a, int* c, int M, int K) {
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int sum = 0;
+    if (col >= M || row >= M) return;
+    for (int i = 0; i < K; ++i) {
+        // In a[col * K + i] there is strided access
+        // For thread 0: a[0 * K + i]
+        // For thread 1: a[1 * K + i]
+        sum += a[row * K + i] * a[col * K + i];
+    }
+    c[row * M + col] = sum;
+}
+
 __global__ void coalescedMultiply(const int* a, const int* b, int* c, int M, int K, int N) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -35,7 +49,6 @@ __global__ void coalescedMultiply(const int* a, const int* b, int* c, int M, int
     }
     if (row < M && col < N) c[row * N + col] = sum;
 }
-
 
 __global__ void sharedMultiply(const int* a, const int* b, int* c, int M, int K, int N) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -145,6 +158,76 @@ void testMultiply(multiFunc func, int warm, int times) {
     cudaFree(d_c);
 }
 
+void testMultiply(multiAATFunc func, int warm, int times) {
+    std::srand(std::time({})); // use current time as seed for random generator
+
+    int M = 1000;
+    int K = 2000;
+
+    int* a = new int[M * K];
+    int* c = new int[M * M];
+    int* cpuMultiply = new int[M * M];
+
+    for (int i = 0; i < M * K; ++i) a[i] = std::rand() % 20;
+
+    multiply(a, cpuMultiply, M, K);
+
+    int* d_a;
+    int* d_c;
+    cudaMalloc((void**)&d_a, M * K * sizeof(int));
+    cudaMalloc((void**)&d_c, M * M * sizeof(int));
+
+    cudaMemcpy(d_a, a, M * K * sizeof(int), cudaMemcpyHostToDevice);
+
+    dim3 blockDim = {32, 32};
+    dim3 gridDim = {(M - 1) / blockDim.x + 1, (M - 1) / blockDim.y + 1};
+
+    cudaEvent_t start, stop;
+    float       time;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    for (int i = 0; i < warm; ++i) {
+        func<<<gridDim, blockDim>>>(d_a, d_c, M, K);
+    }
+
+    cudaDeviceSynchronize();
+
+    cudaEventRecord(start, 0);
+
+    for (int i = 0; i < times; ++i) {
+        func<<<gridDim, blockDim>>>(d_a, d_c, M, K);
+    }
+
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&time, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+    cudaMemcpy(c, d_c, M * M * sizeof(int), cudaMemcpyDeviceToHost);
+
+    bool flag = true;
+    for (int i = 0; i < M * M; ++i) {
+        if (c[i] != cpuMultiply[i]) {
+            std::cout << "Error: " << i << " " << c[i] << " " << cpuMultiply[i];
+            flag = false;
+            break;
+        }
+    }
+    std::cout << std::boolalpha << flag << std::endl;
+
+    std::cout << time / times << " ms" << std::endl;
+
+    delete[] a;
+    delete[] c;
+    delete[] cpuMultiply;
+    cudaFree(d_a);
+    cudaFree(d_c);
+}
+
+
 void multiply(const int* a, const int* b, int* c, int M, int K, int N) {
     int sum;
     for(int row = 0; row < M; ++row) {
@@ -154,6 +237,19 @@ void multiply(const int* a, const int* b, int* c, int M, int K, int N) {
                 sum += a[row * K + k] * b[k * N + col];
             }
             c[row * N + col] = sum;
+        }
+    }
+}
+
+void multiply(const int* a, int* c, int M, int K) {
+    int sum;
+    for(int row = 0; row < M; ++row) {
+        for (int col = 0; col < M; ++col) {
+            sum = 0;
+            for (int k = 0; k < K; ++k) {
+                sum += a[row * K + k] * a[col * K + k];
+            }
+            c[row * M + col] = sum;
         }
     }
 }
