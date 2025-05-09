@@ -19,4 +19,10 @@ void testMatrix() {
 
     std::cout << "Shared multiply: ";
     testMultiply(sharedMultiply);
+
+    std::cout << "Simple multiply AAT: ";
+    testMultiply(simpleMultiplyAAT);
+
+    std::cout << "Coalesced multiply AAT: ";
+    testMultiply(coalescedMultiplyAAT);
 }
