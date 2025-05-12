@@ -4,6 +4,10 @@
 #include <iostream>
 #include <cstdlib>
 
+#ifdef __GNUC__
+#include <ctime>
+#endif
+
 // size(a) = M * K
 // size(b) = K * N
 __global__ void simpleMultiply(const int* a, const int* b, int* c, int M, int K, int N);
